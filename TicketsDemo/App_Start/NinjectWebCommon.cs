@@ -5,6 +5,7 @@ namespace TicketsDemo.App_Start
 {
     using System;
     using System.Web;
+    using System.Collections.Generic;
     using Microsoft.Web.Infrastructure.DynamicModuleHelper;
     using Ninject;
     using Ninject.Web.Common;
@@ -13,6 +14,7 @@ namespace TicketsDemo.App_Start
     using TicketsDemo.Domain.DefaultImplementations.PriceCalculationStrategy;
     using TicketsDemo.Domain.Interfaces;
     using TicketsDemo.EF.Repositories;
+    using TicketsDemo.XML;
 
     public static class NinjectWebCommon 
     {
@@ -57,7 +59,7 @@ namespace TicketsDemo.App_Start
                 throw;
             }
         }
-        
+
         /// <summary>
         /// Load your modules or register your services here!
         /// </summary>
@@ -65,7 +67,8 @@ namespace TicketsDemo.App_Start
         private static void RegisterServices(IKernel kernel)
         {
             kernel.Bind<ITicketRepository>().To<TicketRepository>();
-            kernel.Bind<ITrainRepository>().To<TrainRepository>();
+            kernel.Bind<ITrainRepository>().To<XmlTrainRepository>();
+            kernel.Bind<IHolidayRepository>().To<HolidayRepository>();
 
             kernel.Bind<IRunRepository>().To<RunRepository>();
             kernel.Bind<IReservationRepository>().To<ReservationRepository>();
@@ -74,10 +77,27 @@ namespace TicketsDemo.App_Start
             kernel.Bind<ITicketService>().To<TicketService>();
             kernel.Bind<IReservationService>().To<ReservationService>();
 
-            //todo factory
-            kernel.Bind<IPriceCalculationStrategy>().To<DefaultPriceCalculationStrategy>();
+            ///todo factory
+            //kernel.Bind<IPriceCalculationStrategy>().To<FinalPriceCalculationStrategy>();
+
+            //kernel.Bind<WeekendsAndHolidaysPriceCalculationStrategy>().ToSelf();
+            kernel.Bind<IPriceCalculationStrategy>().ToMethod(x =>
+            {
+                List<IPriceCalculationStrategy> priceCalculationStrategies = new List<IPriceCalculationStrategy>()
+                {
+                    new DefaultPriceCalculationStrategy(x.Kernel.Get<IRunRepository>(), x.Kernel.Get<ITrainRepository>()),
+                    new WeekendsAndHolidaysPriceCalculationStrategy(x.Kernel.Get<IHolidayRepository>())
+                };
+                
+                return new FinalPriceCalculationStrategy(priceCalculationStrategies);
+            });
+
             kernel.Bind<ILogger>().ToMethod(x =>
-                new FileLogger(HttpContext.Current.Server.MapPath("~/App_Data")));
+            {
+
+
+                return new FileLogger(HttpContext.Current.Server.MapPath("~/App_Data"));
+            });
         }        
     }
 }
